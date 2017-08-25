@@ -1,4 +1,4 @@
-# psion retrochallenge
+# Psion retrochallenge
 
 This is the result of my retrochallenge with Psion Organizer II XP.<br />
 Maybe first Tetris game for this pocket computer from 1986.
