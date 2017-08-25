@@ -1,0 +1,211 @@
+TETRIS:
+local brd%(11),bra%,cur%(11),cra%,f$(112),f%
+local nf%,row%,x%,y%,a%,px%,py%,pa%
+local i%,j%,k%,b%
+local un%,um%,s$(32),s%,mc$(255),mc%
+local tmr%,scr,scr$(47),lvl%,lns%
+local kbdl%,bzmt%,mute%,kbmt%
+
+REM HEX-string of machine code, see udg.asm
+mc$="040404CE00030436378401C4014848481B16581BC6027D01802BFBB701815A2EF52D044F0926EF333226DB39"
+mc%=ADDR(mc$)+1
+do
+	i%=PEEKB(mc%)-48 :j%=PEEKB(mc%+1)-48
+	mc$=mc$+CHR$((i%-i%/16*7)*16+j%-j%/16*7)
+	mc%=mc%+2
+until i%*10+j%=39
+
+kbdl%=PEEKB($77)
+POKEB $77,3
+bzmt%=PEEKB($A4)
+kbmt%=PEEKB($20C0) 
+POKEB $20C0,0
+ONERR EXIT::
+
+f$="04000001>>44zg>m0002000 000000270004>oo>376539llg>mkvo0o8L<Lhb72"
+POKEB $180,64
+i%=0
+do
+	i%=i%+1
+	POKEB $181,PEEKB(ADDR(f$)+i%)-16 AND $1F
+until i%=64
+CLS :AT 10,1 :PRINT "* ."+CHR$(0)+CHR$(1)+CHR$(2),"TETRIS	 ",CHR$(3)+CHR$(4)+CHR$(5)+CHR$(6)+CHR$(7)+CHR$(1)
+GET
+
+MENU::
+b%=MENU("START,INFO,QUIT")
+if b%=2
+	AT 3,2 :PRINT "by azya, 2017"
+	VIEW(1,"Q - quit, P - pause, Arrows - move, A - rotate, M - mute") :goto MENU::
+elseif b%=3
+	goto EXIT::
+endif
+
+f$="06600660066006600o0022220o00222203602310036023100630132006301320074022301700622007103220470022600720232027002620"
+lns%=0 :scr=0
+bra%=ADDR(brd%())
+cra%=ADDR(cur%())
+RANDOMIZE PEEKW($20CB)
+nf%=INT(RND*7)
+brd%(10)=$00FF
+s%=ADDR(s$)
+
+NEWF::
+row%=0
+f%=ADDR(f$)+1+nf%*16
+um%=5+(nf%=0)
+tmr%=PEEKW($20CB)
+nf%=INT(RND*7)
+x%=4 :y%=0 :a%=0 :py%=0
+
+i%=18 :b%=18
+do
+	POKEB bra%+b%,PEEKB(bra%+i%)+PEEKB(cra%+i%) OR $81
+	POKEB cra%+b%,0
+	if PEEKB(bra%+b%)<>$FF
+		b%=b%-1
+	endif
+	i%=i%-1
+until i%=0
+
+if b%>0
+	scr=scr+40-60*(b%>1)-200*(b%>2)-900*(b%>3)
+	lns%=lns%+b%
+	if lns%<151
+		lvl%=lns%/10
+	endif
+	i%=800
+	do
+		BEEP 17,i% :BEEP 15,i%-200
+		i%=i%+100
+	until i%>1100
+endif
+
+s$=REPT$(" ",9)+GEN$(1000000+scr,7)+REPT$(" ",10)+CHR$(91)
+POKEB s%+10,32
+s$=s$+MID$("OISZLJT",nf%+1,1)+CHR$(93)+GEN$(100+lvl%,3)
+POKEB s%+30,%L
+AT 1,1 :PRINT s$
+un%=0 :i%=1
+POKEB $180,64
+do
+	j%=0
+	do
+		if brd%(i%) AND $E0E*(j%*7+1)
+			POKEB s%+i%+16*j%,255
+			if un%<um% 
+				USR(mc%+3-3*j%,brd%(i%))
+				POKEB s%+i%+16*j%,un%
+				un%=un%+1
+			endif
+		endif
+		j%=j%+1
+	until j%>1
+	i%=i%+1
+until i%>10
+while KEY :endwh
+
+MAIN::
+POKEB cra%+py%,0
+i%=y%+4
+do
+	i%=i%-1
+	b%=(PEEKB(f%+a%-y%+i%) AND $F)*x%
+	if PEEKB(bra%+i%) AND b%
+		if y%=0 AND x%=4
+			goto GOVR::
+		elseif b% AND $80
+			x%=x%/2
+		elseif b% AND 1
+			x%=x%*2
+		else
+			row%=y%>py% 
+			x%=px% :y%=py% :a%=pa%
+		endif
+		goto MAIN::
+	endif
+	POKEB cra%+i%, b%
+until i%=y%
+px%=x% :py%=y% :pa%=a%
+if row%
+	i%=2000
+	do
+		BEEP 2,i%
+		i%=i%+200
+	until i%>4400
+	goto NEWF:: 
+endif
+
+un%=um%
+i%=y%/2+1
+AT 1,1 :PRINT s$
+do
+	b%=cur%(i%) OR brd%(i%)
+	if cur%(i%) AND $E0E
+		POKEB $180,64+un%*8
+		USR(mc%+3,b%)
+		AT i%,1 :POKEB $181,un%
+		un%=un%+1
+	endif
+	if cur%(i%) AND $7070
+		POKEB $180,64+un%*8
+		USR(mc%,b%)
+		AT i%,2 :POKEB $181,un%
+		un%=un%+1
+	endif
+	i%=i%+1
+until cur%(i%)=0
+
+do
+	k%=KEY AND 95
+	if k%=0
+		PAUSE -1
+	endif
+	if PEEKW($20CB)-tmr%>17-lvl%
+		tmr%=PEEKW($20CB) 
+		y%=y%+1
+		goto MAIN::
+	elseif k%
+		while KEY :endwh
+		if k%=6
+			scr=scr+1
+			y%=y%+1
+		elseif k%=3
+			BEEP 15,500
+			x%=x%-x%/2
+		elseif k%=4
+			BEEP 15,500
+			x%=x%+x%
+		elseif k%=%A
+			BEEP 15,750
+			a%=a%+4 AND 15
+		elseif k%=%P
+			AT 1,1 :PRINT "PAUSE" :GET
+		elseif k%=%M
+			mute%=-(mute%-1)
+			POKEB $A4,mute%
+		elseif k%=%Q
+			BREAK
+		endif
+		goto MAIN::
+	endif
+until 0
+
+GOVR::
+scr$="Scores:"+GEN$(scr,6)+" Level:"+GEN$(lvl%,2)+" Lines:"+GEN$(lns%,6)
+if k%<>%Q
+	scr$="GAME OVER"+CHR$(33)+" "+scr$
+endif
+do
+	b%=DISP(1,scr$+CHR$(9)+" QUIT GAME"+CHR$(63)+" Y/N ") and 95
+	if b%=%N AND k%=%Q
+		goto MAIN:: 
+	elseif b%=%N
+		TETRIS:
+	endif
+until b%=%Y
+
+EXIT::
+POKEB $77,kbdl%
+POKEB $A4,bzmt%
+POKEB $20C0,kbmt%
